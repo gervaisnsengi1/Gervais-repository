@@ -1,0 +1,77 @@
+# Configure the Azure provider
+provider "azurerm" {
+  features {}
+}
+
+# Reference an FinalProjectResource Group
+data "azurerm_resource_group" "FinalProject" {
+  name = "FinalProject-resource-group-name"
+}
+
+# Reference an Data center Virtual Network
+data "azurerm_virtual_network" "DC_vnet" {
+  name                = "dc-vnet-name"
+  resource_group_name = data.FinalProject-resource-group-name
+}
+
+# Reference a Subnet within Data Center Virtual Network
+data "azurerm_subnet" "dc_subnet_one" {
+  name                 = "dc-subnet-name"
+  virtual_network_name = data.azurerm_virtual_network.dc-vnet-name
+  resource_group_name  = data.FinalProject-resource-group-name
+}
+
+# Create a public IP address
+resource "azurerm_public_ip" "pub_one" {
+  name                = "pubone-pip"
+  location            = data.azurerm_resource_group.FinalProject.location
+  resource_group_name = data.FinalProject-resource-group-name
+  allocation_method   = "Dynamic"
+}
+
+# Create a network interface
+resource "azurerm_network_interface" "pub_two" {
+  name                = "pubtwo-nic"
+  location            = data.azurerm_resource_group.FinalProject.location
+  resource_group_name = data.FinalProject-resource-group-name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = data.azurerm_subnet.existing_subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
+Recording 2024-07-12 174821.mp4
+
+# Create a virtual machine
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "example-vm"
+  resource_group_name = data.FinalProject-resource-group-name
+  location            = data.azurerm_resource_group.FinalProject.location
+  size                = "Standard_DS1_v2"
+
+  admin_username      = "adminuser"
+  disable_password_authentication = true
+
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  admin_ssh_key {
+        username = "adminuser"
+        public_key = file("C:/Users/ASAA/.ssh/azure_key.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+}
